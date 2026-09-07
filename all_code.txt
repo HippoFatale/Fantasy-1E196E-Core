@@ -1,0 +1,2001 @@
+﻿
+
+=== FILE: D:\Minecraft Projects\NeoForge\Fantasy-1E196E-Core\src\main\java\me\hippofatale\fantasy1e196ecore\Config.java ===
+
+package me.hippofatale.fantasy1e196ecore;
+
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.Item;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.fml.event.config.ModConfigEvent;
+import net.neoforged.neoforge.common.ModConfigSpec;
+
+// An example config class. This is not required, but it's a good idea to have one to keep your config organized.
+// Demonstrates how to use Neo's config APIs
+public class Config {
+    private static final ModConfigSpec.Builder BUILDER = new ModConfigSpec.Builder();
+
+    public static final ModConfigSpec.BooleanValue LOG_DIRT_BLOCK = BUILDER
+            .comment("Whether to log the dirt block on common setup")
+            .define("logDirtBlock", true);
+
+    public static final ModConfigSpec.IntValue MAGIC_NUMBER = BUILDER
+            .comment("A magic number")
+            .defineInRange("magicNumber", 42, 0, Integer.MAX_VALUE);
+
+    public static final ModConfigSpec.ConfigValue<String> MAGIC_NUMBER_INTRODUCTION = BUILDER
+            .comment("What you want the introduction message to be for the magic number")
+            .define("magicNumberIntroduction", "The magic number is... ");
+
+    // a list of strings that are treated as resource locations for item
+    public static final ModConfigSpec.ConfigValue<List<? extends String>> ITEM_STRINGS = BUILDER
+            .comment("A list of item to log on common setup.")
+            .defineListAllowEmpty("item", List.of("minecraft:iron_ingot"), () -> "", Config::validateItemName);
+
+    static final ModConfigSpec SPEC = BUILDER.build();
+
+    private static boolean validateItemName(final Object obj) {
+        return obj instanceof String itemName && BuiltInRegistries.ITEM.containsKey(ResourceLocation.parse(itemName));
+    }
+}
+
+
+=== FILE: D:\Minecraft Projects\NeoForge\Fantasy-1E196E-Core\src\main\java\me\hippofatale\fantasy1e196ecore\Fantasy1E196ECore.java ===
+
+package me.hippofatale.fantasy1e196ecore;
+
+import me.hippofatale.fantasy1e196ecore.ability.ExampleAbility;
+import me.hippofatale.fantasy1e196ecore.ability.ModAbilities;
+import me.hippofatale.fantasy1e196ecore.attachment.ModAttachments;
+import me.hippofatale.fantasy1e196ecore.attribute.ModAttributes;
+import me.hippofatale.fantasy1e196ecore.datacomponent.ModDataComponents;
+import me.hippofatale.fantasy1e196ecore.entity.ModEntities;
+import me.hippofatale.fantasy1e196ecore.item.ModItems;
+import me.hippofatale.fantasy1e196ecore.network.ModNetwork;
+import me.hippofatale.fantasy1e196ecore.statuseffect.ModStatusEffects;
+import org.slf4j.Logger;
+
+import com.mojang.logging.LogUtils;
+
+import net.minecraft.resources.ResourceLocation;
+import net.neoforged.bus.api.IEventBus;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.Mod;
+import net.neoforged.fml.config.ModConfig;
+import net.neoforged.fml.ModContainer;
+import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
+import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent;
+import net.neoforged.neoforge.event.server.ServerStartingEvent;
+
+// The value here should match an entry in the META-INF/neoforge.mods.toml file
+@Mod(Fantasy1E196ECore.MOD_ID)
+public class Fantasy1E196ECore {
+    // Define mod id in a common place for everything to reference
+    public static final String MOD_ID = "fantasy1e196ecore";
+    // Directly reference a slf4j logger
+    public static final Logger LOGGER = LogUtils.getLogger();
+
+    // The constructor for the mod class is the first code that is run when your mod is loaded.
+    // FML will recognize some parameter types like IEventBus or ModContainer and pass them in automatically.
+    public Fantasy1E196ECore(IEventBus modEventBus, ModContainer modContainer) {
+        // Register the commonSetup method for modloading
+        modEventBus.addListener(this::commonSetup);
+
+        // Register ourselves for server and other game event we are interested in.
+        // Note that this is necessary if and only if we want *this* class (Fantasy1E196ECore) to respond directly to event.
+        // Do not add this line if there are no @SubscribeEvent-annotated functions in this class, like onServerStarting() below.
+        NeoForge.EVENT_BUS.register(this);
+
+        ModAttachments.ATTACHMENT_TYPES.register(modEventBus);
+        ModAttributes.ATTRIBUTES.register(modEventBus);
+        ModDataComponents.COMPONENTS.register(modEventBus);
+        ModEntities.ENTITIES.register(modEventBus);
+        ModItems.ITEMS.register(modEventBus);
+        ModStatusEffects.STATUS_EFFECTS.register(modEventBus);
+
+        // Register the item to a creative tab
+        modEventBus.addListener(this::addCreative);
+
+        // Register our mod's ModConfigSpec so that FML can create and load the config file for us
+        modContainer.registerConfig(ModConfig.Type.COMMON, Config.SPEC);
+
+    }
+
+    private void commonSetup(FMLCommonSetupEvent event) {
+        ModAbilities.init();
+    }
+
+    // Add the example block item to the building blocks tab
+    private void addCreative(BuildCreativeModeTabContentsEvent event) {
+    }
+
+    // You can use SubscribeEvent and let the Event Bus discover methods to call
+    @SubscribeEvent
+    public void onServerStarting(ServerStartingEvent event) {
+        // Do something when the server starts
+        LOGGER.info("HELLO from server starting");
+    }
+}
+
+
+=== FILE: D:\Minecraft Projects\NeoForge\Fantasy-1E196E-Core\src\main\java\me\hippofatale\fantasy1e196ecore\Fantasy1E196ECoreClient.java ===
+
+package me.hippofatale.fantasy1e196ecore;
+
+import me.hippofatale.fantasy1e196ecore.client.renderer.entity.ModProjectileRenderer;
+import me.hippofatale.fantasy1e196ecore.entity.ModEntities;
+import net.minecraft.client.Minecraft;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.ModContainer;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.fml.common.Mod;
+import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
+import net.neoforged.neoforge.client.event.EntityRenderersEvent;
+import net.neoforged.neoforge.client.gui.ConfigurationScreen;
+import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
+
+// This class will not load on dedicated servers. Accessing client side code from here is safe.
+@Mod(value = Fantasy1E196ECore.MOD_ID, dist = Dist.CLIENT)
+// You can use EventBusSubscriber to automatically register all static methods in the class annotated with @SubscribeEvent
+@EventBusSubscriber(modid = Fantasy1E196ECore.MOD_ID, value = Dist.CLIENT)
+public class Fantasy1E196ECoreClient {
+    public Fantasy1E196ECoreClient(ModContainer container) {
+        // Allows NeoForge to create a config screen for this mod's configs.
+        // The config screen is accessed by going to the Mods screen > clicking on your mod > clicking on config.
+        // Do not forget to add translations for your config options to the en_us.json file.
+        container.registerExtensionPoint(IConfigScreenFactory.class, ConfigurationScreen::new);
+    }
+
+    @SubscribeEvent
+    static void onClientSetup(FMLClientSetupEvent event) {
+        // Some client setup code
+        Fantasy1E196ECore.LOGGER.info("HELLO FROM CLIENT SETUP");
+        Fantasy1E196ECore.LOGGER.info("MINECRAFT NAME >> {}", Minecraft.getInstance().getUser().getName());
+    }
+
+    @SubscribeEvent
+    static void registerEntityRenderers(EntityRenderersEvent.RegisterRenderers event) {
+        event.registerEntityRenderer(ModEntities.RAILGUN_PROJECTILE.get(), ModProjectileRenderer::new);
+        event.registerEntityRenderer(ModEntities.GUN_BULLET.get(), ModProjectileRenderer::new);
+    }
+}
+
+
+=== FILE: D:\Minecraft Projects\NeoForge\Fantasy-1E196E-Core\src\main\java\me\hippofatale\fantasy1e196ecore\ability\ExampleAbility.java ===
+
+package me.hippofatale.fantasy1e196ecore.ability;
+
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.ai.attributes.Attributes;
+
+public class ExampleAbility extends ModAbility {
+    
+    public ExampleAbility() {
+        super(
+            ResourceLocation.fromNamespaceAndPath("fantasy1e196ecore", "example_ability"),
+            "ability.fantasy1e196ecore.example",
+            "ability.fantasy1e196ecore.example.tooltip"
+        );
+    }
+    
+    @Override
+    public void execute(ServerPlayer player) {
+        // Example ability logic: heal the player
+        player.heal(4.0f);
+        player.sendSystemMessage(net.minecraft.network.chat.Component.literal("Ability activated! You were healed."));
+    }
+}
+
+
+=== FILE: D:\Minecraft Projects\NeoForge\Fantasy-1E196E-Core\src\main\java\me\hippofatale\fantasy1e196ecore\ability\ModAbilities.java ===
+
+package me.hippofatale.fantasy1e196ecore.ability;
+
+import me.hippofatale.fantasy1e196ecore.Fantasy1E196ECore;
+import net.minecraft.resources.ResourceLocation;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.function.Supplier;
+
+public class ModAbilities {
+    private static final Map<ResourceLocation, Supplier<ModAbility>> ABILITIES = new HashMap<>();
+
+    public static final Supplier<ModAbility> EXAMPLE_ABILITY = register(
+            ResourceLocation.fromNamespaceAndPath(Fantasy1E196ECore.MOD_ID, "example_ability"),
+            ExampleAbility::new
+    );
+
+    public static final Supplier<ModAbility> RAILGUN_ABILITY = register(
+            ResourceLocation.fromNamespaceAndPath(Fantasy1E196ECore.MOD_ID, "railgun_ability"),
+            RailgunAbility::new
+    );
+
+    private static Supplier<ModAbility> register(ResourceLocation id, Supplier<ModAbility> ability) {
+        ABILITIES.put(id, ability);
+        Fantasy1E196ECore.LOGGER.info("Registered ability: {}", id);
+        return ability;
+    }
+
+    public static ModAbility getAbility(ResourceLocation id) {
+        Supplier<ModAbility> supplier = ABILITIES.get(id);
+        return supplier != null ? supplier.get() : null;
+    }
+
+    public static boolean hasAbility(ResourceLocation id) {
+        return ABILITIES.containsKey(id);
+    }
+
+    public static void init() {
+
+    }
+}
+
+
+=== FILE: D:\Minecraft Projects\NeoForge\Fantasy-1E196E-Core\src\main\java\me\hippofatale\fantasy1e196ecore\ability\ModAbility.java ===
+
+package me.hippofatale.fantasy1e196ecore.ability;
+
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerPlayer;
+
+public abstract class ModAbility {
+    private final ResourceLocation abilityId;
+    private final String nameTranslationKey;
+    private final String tooltipTranslationKey;
+
+    public ModAbility(ResourceLocation abilityId, String nameTranslationKey, String tooltipTranslationKey) {
+        this.abilityId = abilityId;
+        this.nameTranslationKey = nameTranslationKey;
+        this.tooltipTranslationKey = tooltipTranslationKey;
+    }
+
+    public ResourceLocation getAbilityId() {
+        return this.abilityId;
+    }
+
+    public Component getName() {
+        return Component.translatable(this.nameTranslationKey);
+    }
+
+    public Component getTooltip() {
+        return Component.translatable(this.tooltipTranslationKey);
+    }
+
+    public abstract void execute(ServerPlayer player);
+}
+
+
+=== FILE: D:\Minecraft Projects\NeoForge\Fantasy-1E196E-Core\src\main\java\me\hippofatale\fantasy1e196ecore\ability\RailgunAbility.java ===
+
+package me.hippofatale.fantasy1e196ecore.ability;
+
+import me.hippofatale.fantasy1e196ecore.attachment.ModAttachments;
+import me.hippofatale.fantasy1e196ecore.entity.ModEntities;
+import me.hippofatale.fantasy1e196ecore.entity.projectile.RailgunProjectile;
+import me.hippofatale.fantasy1e196ecore.network.BatterySyncS2CPacket;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerPlayer;
+import net.neoforged.neoforge.network.PacketDistributor;
+
+public class RailgunAbility extends ModAbility {
+    public RailgunAbility() {
+        super(
+                ResourceLocation.fromNamespaceAndPath("fantasy1e196ecore", "railgun_ability"),
+                "ability.fantasy1e196ecore.railgun",
+                "ability.fantasy1e196ecore.railgun.tooltip"
+        );
+    }
+
+    @Override
+    public void execute(ServerPlayer player) {
+        int currentBattery = player.getData(ModAttachments.MECHANIC_BATTERY.get());
+        if (currentBattery < 10) {
+            return;
+        }
+
+        player.setData(ModAttachments.MECHANIC_BATTERY.get(), currentBattery - 10);
+        PacketDistributor.sendToPlayer(player, new BatterySyncS2CPacket(currentBattery - 10));
+
+        RailgunProjectile projectile = new RailgunProjectile(ModEntities.RAILGUN_PROJECTILE.get(), player.level());
+        projectile.setOwner(player);
+        projectile.moveTo(player.getX(), player.getEyeY(), player.getZ());
+        projectile.shootFromRotation(player, player.getXRot(), player.getYRot(), 0.0F, projectile.getSpeed(), 0.0F);
+        player.level().addFreshEntity(projectile);
+    }
+}
+
+
+=== FILE: D:\Minecraft Projects\NeoForge\Fantasy-1E196E-Core\src\main\java\me\hippofatale\fantasy1e196ecore\attachment\ModAttachments.java ===
+
+package me.hippofatale.fantasy1e196ecore.attachment;
+
+import com.mojang.serialization.Codec;
+import me.hippofatale.fantasy1e196ecore.Fantasy1E196ECore;
+import me.hippofatale.fantasy1e196ecore.entity.projectile.BulletProjectile;
+import me.hippofatale.fantasy1e196ecore.entity.projectile.BulletProjectile.BulletType;
+import me.hippofatale.fantasy1e196ecore.util.PlayerClass;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.ByteBufCodecs;
+import net.minecraft.network.codec.StreamCodec;
+import net.neoforged.neoforge.attachment.AttachmentType;
+import net.neoforged.neoforge.registries.DeferredRegister;
+import net.neoforged.neoforge.registries.NeoForgeRegistries;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Supplier;
+
+public class ModAttachments {
+    public static final DeferredRegister<AttachmentType<?>> ATTACHMENT_TYPES = DeferredRegister.create(NeoForgeRegistries.Keys.ATTACHMENT_TYPES, Fantasy1E196ECore.MOD_ID);
+
+    //player data
+    public static final Supplier<AttachmentType<Integer>> ARCANUM_POINT = ATTACHMENT_TYPES.register("arcanum_point",
+            () -> AttachmentType.<Integer>builder(() -> 0)
+                    .serialize(Codec.INT)
+                    .copyOnDeath()
+                    .build());
+
+    public static final Supplier<AttachmentType<PlayerClass>> CURRENT_CLASS = ATTACHMENT_TYPES.register("current_class",
+            () -> AttachmentType.builder(() -> PlayerClass.NONE)
+//                    .serialize(PlayerClass.CODEC)
+                    .copyOnDeath()
+                    .sync((holder, to) -> holder == to, ByteBufCodecs.fromCodec(PlayerClass.CODEC))
+                    .build());
+
+    //weapon attachments
+    private static final StreamCodec<RegistryFriendlyByteBuf, List<BulletType>> CYLINDER_STREAM_CODEC = StreamCodec.of(
+            (buf, list) -> {
+                buf.writeVarInt(list.size());
+                for (BulletProjectile.BulletType t : list) buf.writeEnum(t);
+            },
+            buf -> {
+                int size = buf.readVarInt();
+                List<BulletProjectile.BulletType> list = new ArrayList<>();
+                for (int i = 0; i < size; i++) list.add(buf.readEnum(BulletProjectile.BulletType.class));
+                return list;
+            }
+    );
+
+    public static final Supplier<AttachmentType<List<BulletProjectile.BulletType>>> GUN_CYLINDER = ATTACHMENT_TYPES.register(
+            "gun_cylinder", () -> AttachmentType.builder(() -> (List<BulletProjectile.BulletType>) new ArrayList<BulletProjectile.BulletType>())
+                    .copyOnDeath()
+                    .sync((holder, to) -> holder == to, CYLINDER_STREAM_CODEC)
+                    .build()
+    );
+
+    //class attachments
+    public static final Supplier<AttachmentType<Integer>> MECHANIC_BATTERY = ATTACHMENT_TYPES.register("mechanic_battery",
+            () -> AttachmentType.builder(() -> 0)
+                    .sync((holder, to) -> holder == to, ByteBufCodecs.INT)
+                    .build()
+    );
+}
+
+
+=== FILE: D:\Minecraft Projects\NeoForge\Fantasy-1E196E-Core\src\main\java\me\hippofatale\fantasy1e196ecore\attribute\AttributeData.java ===
+
+package me.hippofatale.fantasy1e196ecore.attribute;
+
+import net.minecraft.world.entity.ai.attributes.Attribute;
+
+import java.util.function.Supplier;
+
+public record AttributeData (Supplier<Attribute> attributeSupplier, String translationKey, double defaultValute, double minValue, double maxValue){
+    public Attribute get() {
+        return attributeSupplier().get();
+    }
+}
+
+
+=== FILE: D:\Minecraft Projects\NeoForge\Fantasy-1E196E-Core\src\main\java\me\hippofatale\fantasy1e196ecore\attribute\ModAttributes.java ===
+
+package me.hippofatale.fantasy1e196ecore.attribute;
+
+import me.hippofatale.fantasy1e196ecore.Fantasy1E196ECore;
+import net.minecraft.core.Holder;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.world.entity.ai.attributes.Attribute;
+import net.minecraft.world.entity.ai.attributes.RangedAttribute;
+import net.neoforged.neoforge.registries.DeferredRegister;
+
+public class ModAttributes {
+    public static final DeferredRegister<Attribute> ATTRIBUTES = DeferredRegister.create(Registries.ATTRIBUTE, Fantasy1E196ECore.MOD_ID);
+
+    //main stats
+    public static final Holder<Attribute> STRENGTH = ATTRIBUTES.register("strength",
+            () -> new RangedAttribute("attribute.fantasy1e196ecore.strength", 0.0, 0.0, 1024.0).setSyncable(true));
+
+    public static final Holder<Attribute> DEXTERITY = ATTRIBUTES.register("dexterity",
+            () -> new RangedAttribute("attribute.fantasy1e196ecore.dexterity", 0.0, 0.0, 1024.0).setSyncable(true));
+
+    public static final Holder<Attribute> INTELLIGENCE = ATTRIBUTES.register("intelligence",
+            () -> new RangedAttribute("attribute.fantasy1e196ecore.intelligence", 0.0, 0.0, 1024.0).setSyncable(true));
+
+    //attack stats
+    public static final Holder<Attribute> SKILL_SPEED = ATTRIBUTES.register("skill_speed",
+            () -> new RangedAttribute("attribute.fantasy1e196ecore.skill_speed", 0.0, 0.0, 1024.0).setSyncable(true));
+
+    public static final Holder<Attribute> CRIT_RATE = ATTRIBUTES.register("crit_rate",
+            () -> new RangedAttribute("attribute.fantasy1e196ecore.crit_rate", 0.0, 0.0, 100.0).setSyncable(true));
+
+    public static final Holder<Attribute> CRIT_DAMAGE = ATTRIBUTES.register("crit_damage",
+            () -> new RangedAttribute("attribute.fantasy1e196ecore.crit_damage", 100.0, 0.0, 1024.0).setSyncable(true));
+
+//    //vanilla stats
+//    public static final Supplier<Attribute> ATTACK_SPEED = Attributes.ATTACK_SPEED::value;
+//    public static final Supplier<Attribute> MAX_HEALTH = Attributes.MAX_HEALTH::value;
+//    public static final Supplier<Attribute> ARMOR = Attributes.ARMOR::value;
+//    public static final Supplier<Attribute> MOVEMENT_SPEED = Attributes.MOVEMENT_SPEED::value;
+//
+//    public static final Map<String,AttributeData> ALL_ATTRIBUTES = new HashMap<>();
+//
+//    public static void initAttributeMap() {
+//        ALL_ATTRIBUTES.put("strength", new AttributeData(STRENGTH, "attribute.fantasy1e196ecore.strength", ))
+//    }
+
+
+}
+
+
+=== FILE: D:\Minecraft Projects\NeoForge\Fantasy-1E196E-Core\src\main\java\me\hippofatale\fantasy1e196ecore\client\KeybindHandler.java ===
+
+package me.hippofatale.fantasy1e196ecore.client;
+
+import me.hippofatale.fantasy1e196ecore.Fantasy1E196ECore;
+import me.hippofatale.fantasy1e196ecore.client.screen.ClassSelectionScreen;
+import me.hippofatale.fantasy1e196ecore.network.AbilityInputC2SPacket;
+import net.minecraft.client.Minecraft;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.client.event.InputEvent;
+import net.neoforged.neoforge.network.PacketDistributor;
+
+@EventBusSubscriber(modid = Fantasy1E196ECore.MOD_ID, value = Dist.CLIENT)
+public class KeybindHandler {
+    
+    @SubscribeEvent
+    public static void onKeyInput(InputEvent.Key event) {
+        Minecraft mc = Minecraft.getInstance();
+
+        if (mc.player == null || mc.screen != null) {
+            return;
+        }
+
+        if (ModKeybinds.SKILL_1.consumeClick()) {
+            onSkillPressed(1);
+        } else if (ModKeybinds.SKILL_2.consumeClick()) {
+            onSkillPressed(2);
+        } else if (ModKeybinds.SKILL_3.consumeClick()) {
+            onSkillPressed(3);
+        } else if (ModKeybinds.SKILL_4.consumeClick()) {
+            onSkillPressed(4);
+        } else if (ModKeybinds.OPEN_CLASS_SELECTION.consumeClick()) {
+            mc.setScreen(new ClassSelectionScreen());
+        }
+    }
+
+    private static void onSkillPressed(int skillSlot) {
+        Fantasy1E196ECore.LOGGER.info("Skill {} key pressed", skillSlot);
+
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player != null) {
+            net.minecraft.resources.ResourceLocation abilityId;
+
+            switch (skillSlot) {
+                case 1:
+                    abilityId = net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(Fantasy1E196ECore.MOD_ID, "railgun_ability");
+                    break;
+                default:
+                    abilityId = net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(Fantasy1E196ECore.MOD_ID, "example_ability");
+                    break;
+            }
+
+            // Send packet to server to activate ability
+            PacketDistributor.sendToServer(new AbilityInputC2SPacket(abilityId));
+        }
+    }
+}
+
+
+=== FILE: D:\Minecraft Projects\NeoForge\Fantasy-1E196E-Core\src\main\java\me\hippofatale\fantasy1e196ecore\client\ModKeybinds.java ===
+
+package me.hippofatale.fantasy1e196ecore.client;
+
+import com.mojang.blaze3d.platform.InputConstants;
+import net.minecraft.client.KeyMapping;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
+import net.neoforged.neoforge.client.settings.KeyConflictContext;
+import org.lwjgl.glfw.GLFW;
+
+@EventBusSubscriber(modid = "fantasy1e196ecore", value = Dist.CLIENT)
+public class ModKeybinds {
+
+    public static KeyMapping SKILL_1;
+    public static KeyMapping SKILL_2;
+    public static KeyMapping SKILL_3;
+    public static KeyMapping SKILL_4;
+    public static KeyMapping OPEN_CLASS_SELECTION;
+
+    @SubscribeEvent
+    public static void registerKeyMappings(RegisterKeyMappingsEvent event) {
+        SKILL_1 = new KeyMapping(
+            "key.fantasy1e196ecore.skill_1",
+            KeyConflictContext.UNIVERSAL,
+            InputConstants.Type.KEYSYM,
+            GLFW.GLFW_KEY_1,
+            "key.category.fantasy1e196ecore"
+        );
+
+        SKILL_2 = new KeyMapping(
+            "key.fantasy1e196ecore.skill_2",
+            KeyConflictContext.UNIVERSAL,
+            InputConstants.Type.KEYSYM,
+            GLFW.GLFW_KEY_2,
+            "key.category.fantasy1e196ecore"
+        );
+
+        SKILL_3 = new KeyMapping(
+            "key.fantasy1e196ecore.skill_3",
+            KeyConflictContext.UNIVERSAL,
+            InputConstants.Type.KEYSYM,
+            GLFW.GLFW_KEY_3,
+            "key.category.fantasy1e196ecore"
+        );
+
+        SKILL_4 = new KeyMapping(
+            "key.fantasy1e196ecore.skill_4",
+            KeyConflictContext.UNIVERSAL,
+            InputConstants.Type.KEYSYM,
+            GLFW.GLFW_KEY_4,
+            "key.category.fantasy1e196ecore"
+        );
+
+        OPEN_CLASS_SELECTION = new KeyMapping(
+            "key.fantasy1e196ecore.open_class_selection",
+            KeyConflictContext.UNIVERSAL,
+            InputConstants.Type.KEYSYM,
+            GLFW.GLFW_KEY_C,
+            "key.category.fantasy1e196ecore"
+        );
+
+        event.register(SKILL_1);
+        event.register(SKILL_2);
+        event.register(SKILL_3);
+        event.register(SKILL_4);
+        event.register(OPEN_CLASS_SELECTION);
+    }
+}
+
+
+=== FILE: D:\Minecraft Projects\NeoForge\Fantasy-1E196E-Core\src\main\java\me\hippofatale\fantasy1e196ecore\client\hud\BatteryHud.java ===
+
+package me.hippofatale.fantasy1e196ecore.client.hud;
+
+import com.mojang.blaze3d.systems.RenderSystem;
+import me.hippofatale.fantasy1e196ecore.attachment.ModAttachments;
+import me.hippofatale.fantasy1e196ecore.entity.projectile.BulletProjectile;
+import me.hippofatale.fantasy1e196ecore.item.weapon.GunItem;
+import me.hippofatale.fantasy1e196ecore.util.PlayerClass;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.Font;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.client.event.RenderGuiEvent;
+
+import java.util.List;
+
+@EventBusSubscriber(modid = "fantasy1e196ecore", value = Dist.CLIENT)
+public class BatteryHud {
+
+    @SubscribeEvent
+    public static void onRenderGui(RenderGuiEvent.Post event) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player == null || mc.screen != null) {
+            return;
+        }
+
+        PlayerClass playerClass = mc.player.getData(ModAttachments.CURRENT_CLASS.get());
+        int yOffset = 10;
+
+        // Display battery for MECHANIC class
+        if (playerClass == PlayerClass.MECHANIC) {
+            int battery = mc.player.getData(ModAttachments.MECHANIC_BATTERY.get());
+            renderBatteryHud(event.getGuiGraphics(), battery, yOffset);
+            yOffset += 15;
+        }
+
+        // Display bullet count for classes that use GunItem
+        if (playerClass.getMainWeapon() == GunItem.class) {
+            List<BulletProjectile.BulletType> cylinder = mc.player.getData(ModAttachments.GUN_CYLINDER.get());
+            renderBulletHud(event.getGuiGraphics(), cylinder, yOffset);
+        }
+    }
+
+    private static void renderBatteryHud(GuiGraphics guiGraphics, int battery, int y) {
+        Font font = Minecraft.getInstance().font;
+        int x = 10;
+        String text = "Battery: " + battery;
+
+        guiGraphics.drawString(font, text, x, y, 0xFFFFFF);
+    }
+
+    private static void renderBulletHud(GuiGraphics guiGraphics, List<BulletProjectile.BulletType> cylinder, int y) {
+        Font font = Minecraft.getInstance().font;
+        int x = 10;
+
+        StringBuilder bulletList = new StringBuilder();
+        for (int i = 0; i < cylinder.size(); i++) {
+            if (i > 0) {
+                bulletList.append(", ");
+            }
+            bulletList.append(cylinder.get(i).getSerializedName());
+        }
+
+        String text = "Bullets: " + bulletList.toString();
+        guiGraphics.drawString(font, text, x, y, 0xFFFFFF);
+    }
+}
+
+
+=== FILE: D:\Minecraft Projects\NeoForge\Fantasy-1E196E-Core\src\main\java\me\hippofatale\fantasy1e196ecore\client\renderer\entity\ModProjectileRenderer.java ===
+
+package me.hippofatale.fantasy1e196ecore.client.renderer.entity;
+
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.VertexConsumer;
+import me.hippofatale.fantasy1e196ecore.entity.projectile.ModProjectile;
+import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.RenderType;
+import net.minecraft.client.renderer.entity.EntityRenderer;
+import net.minecraft.client.renderer.entity.EntityRendererProvider;
+import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.resources.ResourceLocation;
+
+public class ModProjectileRenderer extends EntityRenderer<ModProjectile> {
+
+    public ModProjectileRenderer(EntityRendererProvider.Context context) {
+        super(context);
+    }
+
+    @Override
+    public void render(ModProjectile entity, float entityYaw, float partialTick, PoseStack poseStack, MultiBufferSource bufferSource, int packedLight) {
+        poseStack.pushPose();
+        poseStack.translate(0.0, 0.0, 0.0);
+
+        // Simple line rendering for projectile
+        VertexConsumer vertexConsumer = bufferSource.getBuffer(RenderType.lines());
+        poseStack.scale(0.1F, 0.1F, 0.5F);
+        this.renderLine(poseStack, vertexConsumer, packedLight);
+
+        poseStack.popPose();
+    }
+
+    private void renderLine(PoseStack poseStack, VertexConsumer vertexConsumer, int packedLight) {
+        float f = 0.0F;
+        float f1 = 0.0F;
+        float f2 = 0.0F;
+        float f3 = 1.0F;
+        vertexConsumer.addVertex(poseStack.last(), f, f1, f2).setColor(255, 255, 255, 255).setUv(0, 0).setOverlay(OverlayTexture.NO_OVERLAY).setLight(packedLight).setNormal(poseStack.last(), 0, 1, 0);
+        vertexConsumer.addVertex(poseStack.last(), f, f1, f3).setColor(255, 255, 255, 255).setUv(0, 1).setOverlay(OverlayTexture.NO_OVERLAY).setLight(packedLight).setNormal(poseStack.last(), 0, 1, 0);
+    }
+
+    @Override
+    public ResourceLocation getTextureLocation(ModProjectile entity) {
+        return ResourceLocation.withDefaultNamespace("textures/entity/projectile/arrow.png");
+    }
+}
+
+
+=== FILE: D:\Minecraft Projects\NeoForge\Fantasy-1E196E-Core\src\main\java\me\hippofatale\fantasy1e196ecore\client\screen\ClassSelectionScreen.java ===
+
+package me.hippofatale.fantasy1e196ecore.client.screen;
+
+import me.hippofatale.fantasy1e196ecore.Fantasy1E196ECore;
+import me.hippofatale.fantasy1e196ecore.network.ClassChangeC2SPacket;
+import me.hippofatale.fantasy1e196ecore.util.PlayerClass;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.Component;
+import net.neoforged.neoforge.network.PacketDistributor;
+
+public class ClassSelectionScreen extends Screen {
+    private static final Component TITLE = Component.translatable("screen.fantasy1e196ecore.class_selection");
+    
+    public ClassSelectionScreen() {
+        super(TITLE);
+    }
+    
+    @Override
+    protected void init() {
+        int buttonWidth = 200;
+        int buttonHeight = 20;
+        int startY = 60;
+        int spacing = 25;
+        
+        int x = (this.width - buttonWidth) / 2;
+        int y = startY;
+        
+        for (PlayerClass playerClass : PlayerClass.values()) {
+            final PlayerClass selectedClass = playerClass;
+            this.addRenderableWidget(Button.builder(
+                Component.translatable(playerClass.getTranslationKey()),
+                button -> {
+                    PacketDistributor.sendToServer(new ClassChangeC2SPacket(selectedClass));
+                    Minecraft.getInstance().setScreen(null);
+                }
+            ).bounds(x, y, buttonWidth, buttonHeight).build());
+            
+            y += spacing;
+        }
+        
+        // Add close button
+        this.addRenderableWidget(Button.builder(
+            Component.translatable("gui.close"),
+            button -> this.onClose()
+        ).bounds(x, y + 10, buttonWidth, buttonHeight).build());
+    }
+    
+    @Override
+    public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+        this.renderBackground(guiGraphics, mouseX, mouseY, partialTick);
+        guiGraphics.drawCenteredString(this.font, this.title, this.width / 2, 30, 0xFFFFFF);
+        super.render(guiGraphics, mouseX, mouseY, partialTick);
+    }
+}
+
+
+=== FILE: D:\Minecraft Projects\NeoForge\Fantasy-1E196E-Core\src\main\java\me\hippofatale\fantasy1e196ecore\datacomponent\ModDataComponents.java ===
+
+package me.hippofatale.fantasy1e196ecore.datacomponent;
+
+import com.mojang.serialization.Codec;
+import me.hippofatale.fantasy1e196ecore.Fantasy1E196ECore;
+import net.minecraft.core.component.DataComponentType;
+import net.minecraft.core.registries.Registries;
+import net.neoforged.neoforge.registries.DeferredRegister;
+
+import java.util.function.Supplier;
+
+public class ModDataComponents {
+    public static final DeferredRegister<DataComponentType<?>> COMPONENTS = DeferredRegister.create(Registries.DATA_COMPONENT_TYPE, Fantasy1E196ECore.MOD_ID);
+
+    public static final Supplier<DataComponentType<Integer>> GUN_AMMO = COMPONENTS.register("gun_ammo",
+            () -> DataComponentType.<Integer>builder()
+                    .persistent(Codec.INT)
+                    .build());
+}
+
+
+=== FILE: D:\Minecraft Projects\NeoForge\Fantasy-1E196E-Core\src\main\java\me\hippofatale\fantasy1e196ecore\entity\ModEntities.java ===
+
+package me.hippofatale.fantasy1e196ecore.entity;
+
+import me.hippofatale.fantasy1e196ecore.Fantasy1E196ECore;
+import me.hippofatale.fantasy1e196ecore.entity.projectile.BulletProjectile;
+import me.hippofatale.fantasy1e196ecore.entity.projectile.RailgunProjectile;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.MobCategory;
+import net.neoforged.neoforge.registries.DeferredRegister;
+
+import java.util.function.Supplier;
+
+public class ModEntities {
+    public static final DeferredRegister<EntityType<?>> ENTITIES = DeferredRegister.create(Registries.ENTITY_TYPE, Fantasy1E196ECore.MOD_ID);
+
+    public static final Supplier<EntityType<BulletProjectile>> GUN_BULLET = ENTITIES.register("gun_bullet",
+            () -> EntityType.Builder.<BulletProjectile>of(BulletProjectile::new, MobCategory.MISC)
+                    .sized(0.25F, 0.25F)
+                    .clientTrackingRange(4)
+                    .updateInterval(10)
+                    .build("gun_bullet"));
+
+    public static final Supplier<EntityType<RailgunProjectile>> RAILGUN_PROJECTILE = ENTITIES.register("railgun_projectile",
+            () -> EntityType.Builder.<RailgunProjectile>of(RailgunProjectile::new, MobCategory.MISC)
+                    .sized(0.5F, 0.5F)
+                    .clientTrackingRange(4)
+                    .updateInterval(10)
+                    .build("railgun_projectile"));
+}
+
+
+=== FILE: D:\Minecraft Projects\NeoForge\Fantasy-1E196E-Core\src\main\java\me\hippofatale\fantasy1e196ecore\entity\ai\SummonOwnerAttackTargetGoal.java ===
+
+package me.hippofatale.fantasy1e196ecore.entity.ai;
+
+import me.hippofatale.fantasy1e196ecore.entity.summon.ModSummonEntity;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.ai.goal.target.TargetGoal;
+import net.minecraft.world.entity.ai.targeting.TargetingConditions;
+import net.minecraft.world.entity.player.Player;
+
+import java.util.EnumSet;
+
+public class SummonOwnerAttackTargetGoal extends TargetGoal {
+    private final ModSummonEntity summon;
+    private LivingEntity ownerLastTarget;
+    private int timestamp;
+
+
+    public SummonOwnerAttackTargetGoal(ModSummonEntity summon) {
+        super(summon, false);
+        this.summon = summon;
+        this.setFlags(EnumSet.of(Flag.TARGET));
+    }
+
+    @Override
+    public boolean canUse() {
+        Player owner = this.summon.getOwner();
+        if (owner == null) {
+            return false;
+        }
+
+        this.ownerLastTarget = owner.getLastHurtMob();
+        int i = owner.getLastHurtMobTimestamp();
+
+        return i != this.timestamp && this.canAttack(this.ownerLastTarget, TargetingConditions.DEFAULT);
+    }
+
+    @Override
+    public void start() {
+        this.mob.setTarget(this.ownerLastTarget);
+        Player owner = this.summon.getOwner();
+        if (owner != null) {
+            this.timestamp = owner.getLastHurtMobTimestamp();
+        }
+
+        super.start();
+    }
+}
+
+
+=== FILE: D:\Minecraft Projects\NeoForge\Fantasy-1E196E-Core\src\main\java\me\hippofatale\fantasy1e196ecore\entity\projectile\BulletProjectile.java ===
+
+package me.hippofatale.fantasy1e196ecore.entity.projectile;
+
+import com.mojang.serialization.Codec;
+import me.hippofatale.fantasy1e196ecore.attachment.ModAttachments;
+import me.hippofatale.fantasy1e196ecore.entity.ModEntities;
+import me.hippofatale.fantasy1e196ecore.network.BatterySyncS2CPacket;
+import net.minecraft.network.syncher.EntityDataAccessor;
+import net.minecraft.network.syncher.EntityDataSerializers;
+import net.minecraft.network.syncher.SynchedEntityData;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.util.StringRepresentable;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.EntityHitResult;
+import net.minecraft.world.phys.HitResult;
+import net.neoforged.neoforge.network.PacketDistributor;
+
+public class BulletProjectile extends ModProjectile {
+    public enum BulletType implements StringRepresentable {
+        NORMAL("normal"),
+        BATTERY("battery"),
+        SYRINGE("syringe"),
+        FREIKUGEL("freikugel");
+
+        public static final Codec<BulletType> CODEC = StringRepresentable.fromEnum(BulletType::values);
+
+        private final String name;
+        BulletType(String name) {
+            this.name = name;
+        }
+
+        @Override
+        public String getSerializedName() {
+            return this.name;
+        }
+    }
+
+    private static final EntityDataAccessor<Integer> BULLET_TYPE = SynchedEntityData.defineId(BulletProjectile.class, EntityDataSerializers.INT);
+
+    public BulletProjectile(EntityType<? extends ModProjectile> entityType, Level level) {
+        super(entityType, level);
+    }
+
+    public BulletProjectile(Level level, LivingEntity owner, BulletType type) {
+        super(ModEntities.GUN_BULLET.get(), level, owner);
+        this.entityData.set(BULLET_TYPE, type.ordinal());
+    }
+
+    public BulletType getBulletType() {
+        int id = this.entityData.get(BULLET_TYPE);
+        return BulletType.values()[id];
+    }
+
+    @Override
+    protected void onProjectileHit(HitResult result) {
+        if (this.level().isClientSide()) {
+            return;
+        }
+
+        if (result instanceof EntityHitResult entityHitResult && this.getOwner() instanceof Player player) {
+            LivingEntity target = (LivingEntity) entityHitResult.getEntity();
+            switch (this.getBulletType()) {
+                case NORMAL -> {
+                    //deal damage based on DEX
+                }
+                case BATTERY -> {
+                    //TODO battery is increased every tick until projectile discards
+
+                    int currentBattery = player.getData(ModAttachments.MECHANIC_BATTERY.get());
+                    player.setData(ModAttachments.MECHANIC_BATTERY.get(), currentBattery + 10);
+                    if (player instanceof ServerPlayer serverPlayer) {
+                        PacketDistributor.sendToPlayer(serverPlayer, new BatterySyncS2CPacket(currentBattery + 10));
+                    }
+                }
+                case SYRINGE -> {
+                    //heal nearby players
+                }
+                case FREIKUGEL -> {
+                    //double damage
+                }
+            }
+        }
+    }
+
+    @Override
+    protected void defineSynchedData(SynchedEntityData.Builder builder) {
+        builder.define(BULLET_TYPE, BulletType.NORMAL.ordinal());
+    }
+}
+
+
+=== FILE: D:\Minecraft Projects\NeoForge\Fantasy-1E196E-Core\src\main\java\me\hippofatale\fantasy1e196ecore\entity\projectile\ModProjectile.java ===
+
+package me.hippofatale.fantasy1e196ecore.entity.projectile;
+
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.monster.Enemy;
+import net.minecraft.world.entity.projectile.Projectile;
+import net.minecraft.world.entity.projectile.ProjectileUtil;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.HitResult;
+import net.minecraft.world.phys.Vec3;
+
+public abstract class ModProjectile extends Projectile {
+    protected final double range;
+    protected final float speed;
+    private static final double defaultRange = 40.0;
+    private static final float defaultSpeed = 2.0F;
+    protected Vec3 startPos;
+
+    public ModProjectile(EntityType<? extends ModProjectile> entityType, Level level) {
+        super(entityType, level);
+        this.range = defaultRange;
+        this.speed = defaultSpeed;
+    }
+
+    public ModProjectile(EntityType<? extends ModProjectile> entityType, Level level, LivingEntity owner){
+        this(entityType, level, owner, defaultRange, defaultSpeed);
+    }
+
+    public ModProjectile(EntityType<? extends ModProjectile> entityType, Level level, LivingEntity owner, double range, float speed){
+        super(entityType, level);
+        this.setOwner(owner);
+        this.range = range;
+        this.speed = speed;
+        this.setPos(owner.getX(), owner.getEyeY() - 0.1, owner.getZ());
+        this.startPos = this.position();
+    }
+
+    public double getRange() {
+        return range;
+    }
+
+    public float getSpeed() {
+        return speed;
+    }
+
+    @Override
+    public void tick() {
+        super.tick();
+        if (this.startPos == null) {
+            this.startPos = this.position();
+        }
+        HitResult hitResult = ProjectileUtil.getHitResultOnMoveVector(this,
+                entity -> this.canHitEntity(entity) && entity instanceof Enemy
+        );
+
+        //max range or blocked
+        if (this.position().distanceTo(this.startPos) >= this.range || hitResult.getType() == HitResult.Type.BLOCK) {
+            this.onMaxRangeOrBlocked();
+            return;
+        }
+
+        //on hit
+        if (hitResult.getType() == HitResult.Type.ENTITY) {
+            this.handleCollision(hitResult);
+            return;
+        }
+
+        //move projectile
+        Vec3 movement = this.getDeltaMovement();
+        this.setPos(this.getX() + movement.x, this.getY() + movement.y, this.getZ() + movement.z);
+        ProjectileUtil.rotateTowardsMovement(this, 0.5F);
+    }
+
+    protected void onMaxRangeOrBlocked() {
+        this.discard();
+    }
+
+    protected void handleCollision(HitResult result) {
+        this.onProjectileHit(result);
+    }
+
+    protected abstract void onProjectileHit(HitResult result);
+}
+
+
+=== FILE: D:\Minecraft Projects\NeoForge\Fantasy-1E196E-Core\src\main\java\me\hippofatale\fantasy1e196ecore\entity\projectile\PiercingProjectile.java ===
+
+package me.hippofatale.fantasy1e196ecore.entity.projectile;
+
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.EntityHitResult;
+import net.minecraft.world.phys.HitResult;
+
+import java.util.ArrayList;
+import java.util.List;
+
+public abstract class PiercingProjectile extends ModProjectile {
+    protected final List<Integer> hitEntityIds = new ArrayList<>();
+
+    public PiercingProjectile(EntityType<? extends ModProjectile> entityType, Level level) {
+        super(entityType, level);
+    }
+
+    public PiercingProjectile(EntityType<? extends ModProjectile> entityType, Level level, LivingEntity owner, double range, float speed) {
+        super(entityType, level, owner, range, speed);
+    }
+
+    @Override
+    protected void handleCollision(HitResult result) {
+        if (!this.level().isClientSide()) {
+            if (result instanceof EntityHitResult) {
+                if (((EntityHitResult) result).getEntity() instanceof LivingEntity target) {
+                    if (!this.hitEntityIds.contains(target.getId())) {
+                        this.hitEntityIds.add(target.getId());
+                        this.onProjectileHit(result);
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+=== FILE: D:\Minecraft Projects\NeoForge\Fantasy-1E196E-Core\src\main\java\me\hippofatale\fantasy1e196ecore\entity\projectile\RailgunProjectile.java ===
+
+package me.hippofatale.fantasy1e196ecore.entity.projectile;
+
+import me.hippofatale.fantasy1e196ecore.attachment.ModAttachments;
+import me.hippofatale.fantasy1e196ecore.network.BatterySyncS2CPacket;
+import net.minecraft.network.syncher.SynchedEntityData;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.HitResult;
+import net.neoforged.neoforge.network.PacketDistributor;
+
+public class RailgunProjectile extends PiercingProjectile {
+    public RailgunProjectile(EntityType<? extends ModProjectile> entityType, Level level) {
+        super(entityType, level);
+    }
+
+    @Override
+    protected void onProjectileHit(HitResult result) {
+        if (this.level().isClientSide()) {
+            return;
+        }
+
+        if (this.hitEntityIds.size() == 1 && this.getOwner() instanceof Player player) {
+            int currentBattery = player.getData(ModAttachments.MECHANIC_BATTERY.get());
+            player.setData(ModAttachments.MECHANIC_BATTERY.get(), currentBattery + 10);
+            if (player instanceof ServerPlayer serverPlayer) {
+                PacketDistributor.sendToPlayer(serverPlayer, new BatterySyncS2CPacket(currentBattery + 10));
+            }
+        }
+    }
+
+    @Override
+    protected void defineSynchedData(SynchedEntityData.Builder builder) {
+
+    }
+}
+
+
+=== FILE: D:\Minecraft Projects\NeoForge\Fantasy-1E196E-Core\src\main\java\me\hippofatale\fantasy1e196ecore\entity\summon\ModSummonEntity.java ===
+
+package me.hippofatale.fantasy1e196ecore.entity.summon;
+
+import me.hippofatale.fantasy1e196ecore.entity.ai.SummonOwnerAttackTargetGoal;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.PathfinderMob;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.Level;
+
+import javax.annotation.Nullable;
+import java.util.UUID;
+
+public class ModSummonEntity extends PathfinderMob {
+    private int lifeTicks;
+    @Nullable private UUID ownerUUID;
+
+    protected ModSummonEntity(EntityType<? extends PathfinderMob> entityType, Level level) {
+        super(entityType, level);
+        this.setInvulnerable(true);
+    }
+
+    public void setupSummon(Player owner, int durationTicks) {
+        this.ownerUUID = owner.getUUID();
+        this.lifeTicks = durationTicks;
+    }
+
+    @Nullable
+    public Player getOwner() {
+        if (this.ownerUUID == null){
+            return null;
+        }
+
+        return this.level().getPlayerByUUID(this.ownerUUID);
+    }
+
+    @Override
+    protected void registerGoals() {
+        //attack
+
+
+        //set target
+        this.targetSelector.addGoal(1, new SummonOwnerAttackTargetGoal(this));
+
+
+        super.registerGoals();
+    }
+
+    @Override
+    public void tick() {
+        super.tick();
+
+        if (!this.level().isClientSide()) {
+            Player owner = this.getOwner();
+            if (owner == null || !owner.isAlive()) {
+                this.discard();
+                return;
+            }
+
+            this.lifeTicks--;
+
+            if (this.lifeTicks <= 0) {
+                this.onSummonTimeOut();
+            }
+        }
+    }
+
+    protected void onSummonTimeOut() {
+        this.discard();
+    }
+
+    @Override
+    public void addAdditionalSaveData(CompoundTag compound) {
+        super.addAdditionalSaveData(compound);
+        compound.putInt("lifeTicks", this.lifeTicks);
+        if (this.ownerUUID != null) {
+            compound.putUUID("ownerUUID", this.ownerUUID);
+        }
+    }
+
+    @Override
+    public void readAdditionalSaveData(CompoundTag compound) {
+        super.readAdditionalSaveData(compound);
+        if (compound.contains("lifeTicks")) {
+            this.lifeTicks = compound.getInt("lifeTicks");
+        }
+        if (compound.hasUUID("ownerUUID")) {
+            this.ownerUUID = compound.getUUID("ownerUUID");
+        }
+    }
+}
+
+
+=== FILE: D:\Minecraft Projects\NeoForge\Fantasy-1E196E-Core\src\main\java\me\hippofatale\fantasy1e196ecore\event\ModEvents.java ===
+
+package me.hippofatale.fantasy1e196ecore.event;
+
+import me.hippofatale.fantasy1e196ecore.Fantasy1E196ECore;
+import me.hippofatale.fantasy1e196ecore.attachment.ModAttachments;
+import me.hippofatale.fantasy1e196ecore.attribute.ModAttributes;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.EntityType;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.event.entity.EntityAttributeModificationEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerXpEvent;
+
+@EventBusSubscriber(modid = Fantasy1E196ECore.MOD_ID)
+public class ModEvents {
+
+    @SubscribeEvent
+    public static void onPlayerLevelUp(PlayerXpEvent.LevelChange event) {
+        if (event.getEntity().level().isClientSide()) {
+            return;
+        }
+        ServerPlayer player = (ServerPlayer) event.getEntity();
+        int currentLevel = player.experienceLevel;
+        int newLevel = event.getLevels();
+
+        if (newLevel > currentLevel) {
+            int levelsGained = newLevel - currentLevel;
+            int pointsToGive = levelsGained * 5;
+
+            int currentPoints = player.getData(ModAttachments.ARCANUM_POINT.get());
+            player.setData(ModAttachments.ARCANUM_POINT, currentPoints + pointsToGive);
+        }
+    }
+
+    @SubscribeEvent
+    public static void onAttributeModification(EntityAttributeModificationEvent event) {
+        event.add(EntityType.PLAYER, ModAttributes.STRENGTH);
+        event.add(EntityType.PLAYER, ModAttributes.DEXTERITY);
+        event.add(EntityType.PLAYER, ModAttributes.INTELLIGENCE);
+        event.add(EntityType.PLAYER, ModAttributes.SKILL_SPEED);
+        event.add(EntityType.PLAYER, ModAttributes.CRIT_RATE);
+        event.add(EntityType.PLAYER, ModAttributes.CRIT_DAMAGE);
+    }
+}
+
+
+=== FILE: D:\Minecraft Projects\NeoForge\Fantasy-1E196E-Core\src\main\java\me\hippofatale\fantasy1e196ecore\item\ModItems.java ===
+
+package me.hippofatale.fantasy1e196ecore.item;
+
+import me.hippofatale.fantasy1e196ecore.Fantasy1E196ECore;
+import me.hippofatale.fantasy1e196ecore.item.weapon.GunItem;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.world.item.Item;
+import net.neoforged.neoforge.registries.DeferredRegister;
+
+import java.util.function.Supplier;
+
+public class ModItems {
+    public static final DeferredRegister<Item> ITEMS = DeferredRegister.create(Registries.ITEM, Fantasy1E196ECore.MOD_ID);
+
+    public static final Supplier<Item> WOOD_GUN = ITEMS.register("wood_gun",
+            () -> new GunItem(new Item.Properties()));
+}
+
+
+=== FILE: D:\Minecraft Projects\NeoForge\Fantasy-1E196E-Core\src\main\java\me\hippofatale\fantasy1e196ecore\item\weapon\GunItem.java ===
+
+package me.hippofatale.fantasy1e196ecore.item.weapon;
+
+import me.hippofatale.fantasy1e196ecore.attachment.ModAttachments;
+import me.hippofatale.fantasy1e196ecore.attribute.ModAttributes;
+import me.hippofatale.fantasy1e196ecore.entity.projectile.BulletProjectile;
+import me.hippofatale.fantasy1e196ecore.network.CylinderSyncS2CPacket;
+import me.hippofatale.fantasy1e196ecore.util.PlayerClass;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.Level;
+import net.neoforged.neoforge.network.PacketDistributor;
+
+import java.util.ArrayList;
+import java.util.List;
+
+public class GunItem extends MainWeaponItem {
+    public GunItem(Properties properties) {
+        super(properties, ModAttributes.DEXTERITY);
+    }
+
+    @Override
+    protected void specialAttack(Level level, Player player) {
+        if (level.isClientSide()) {
+            return;
+        }
+
+        List<BulletProjectile.BulletType> currentCylinder = player.getData(ModAttachments.GUN_CYLINDER.get());
+        if (currentCylinder.isEmpty()) {
+            PlayerClass playerClass = player.getData(ModAttachments.CURRENT_CLASS.get());
+
+            List<BulletProjectile.BulletType> reloadCylinder = new ArrayList<>();
+            switch (playerClass) {
+                case MECHANIC -> {
+                    reloadCylinder.add(BulletProjectile.BulletType.NORMAL);
+                    reloadCylinder.add(BulletProjectile.BulletType.NORMAL);
+                    reloadCylinder.add(BulletProjectile.BulletType.NORMAL);
+                    reloadCylinder.add(BulletProjectile.BulletType.NORMAL);
+                    reloadCylinder.add(BulletProjectile.BulletType.NORMAL);
+                    reloadCylinder.add(BulletProjectile.BulletType.BATTERY);
+                }
+                case DOCTOR -> {
+                    reloadCylinder.add(BulletProjectile.BulletType.NORMAL);
+                    reloadCylinder.add(BulletProjectile.BulletType.NORMAL);
+                    reloadCylinder.add(BulletProjectile.BulletType.NORMAL);
+                    reloadCylinder.add(BulletProjectile.BulletType.NORMAL);
+                    reloadCylinder.add(BulletProjectile.BulletType.NORMAL);
+                    reloadCylinder.add(BulletProjectile.BulletType.SYRINGE);
+                }
+                default -> {
+                    reloadCylinder.add(BulletProjectile.BulletType.NORMAL);
+                    reloadCylinder.add(BulletProjectile.BulletType.NORMAL);
+                    reloadCylinder.add(BulletProjectile.BulletType.NORMAL);
+                    reloadCylinder.add(BulletProjectile.BulletType.NORMAL);
+                    reloadCylinder.add(BulletProjectile.BulletType.NORMAL);
+                    reloadCylinder.add(BulletProjectile.BulletType.NORMAL);
+                }
+            }
+            player.setData(ModAttachments.GUN_CYLINDER.get(), reloadCylinder);
+
+            if (player instanceof ServerPlayer serverPlayer) {
+                PacketDistributor.sendToPlayer(serverPlayer, new CylinderSyncS2CPacket(reloadCylinder));
+            }
+
+            return;
+        }
+
+        List<BulletProjectile.BulletType> mutableCylinder = new ArrayList<>(currentCylinder);
+        BulletProjectile.BulletType firedBullet = mutableCylinder.removeFirst();
+        player.setData(ModAttachments.GUN_CYLINDER.get(), mutableCylinder);
+
+        if (player instanceof ServerPlayer serverPlayer) {
+            PacketDistributor.sendToPlayer(serverPlayer, new CylinderSyncS2CPacket(mutableCylinder));
+        }
+
+        BulletProjectile bullet = new BulletProjectile(level, player, firedBullet);
+
+        bullet.shootFromRotation(player, player.getXRot(), player.getYRot(), 0.0F, bullet.getSpeed(), 1.0F);
+        level.addFreshEntity(bullet);
+
+        player.getCooldowns().addCooldown(this, 4);
+    }
+}
+
+
+=== FILE: D:\Minecraft Projects\NeoForge\Fantasy-1E196E-Core\src\main\java\me\hippofatale\fantasy1e196ecore\item\weapon\MainWeaponItem.java ===
+
+package me.hippofatale.fantasy1e196ecore.item.weapon;
+
+import me.hippofatale.fantasy1e196ecore.attachment.ModAttachments;
+import me.hippofatale.fantasy1e196ecore.util.PlayerClass;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Holder;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResultHolder;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.ai.attributes.Attribute;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.state.BlockState;
+
+public class MainWeaponItem extends Item {
+    private final Holder<Attribute> attribute;
+
+    public MainWeaponItem(Properties properties, Holder<Attribute> attribute) {
+        super(properties.stacksTo(1));
+        this.attribute = attribute;
+    }
+
+    public boolean canAttackBlock(BlockState state, Level level, BlockPos pos, Player player) {
+        return false;
+    }
+
+    @Override
+    public boolean hurtEnemy(ItemStack stack, LivingEntity target, LivingEntity attacker) {
+        //STR based melee damage
+        return super.hurtEnemy(stack, target, attacker);
+    }
+
+    @Override
+    public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand usedHand) {
+        ItemStack weapon = player.getItemInHand(usedHand);
+
+        if (level.isClientSide()) {
+            return InteractionResultHolder.sidedSuccess(weapon, level.isClientSide());
+        }
+
+        //check if weapon matches class
+        PlayerClass playerClass = player.getData(ModAttachments.CURRENT_CLASS.get());
+        if (!playerClass.getMainWeapon().isInstance(weapon.getItem())) {
+            return InteractionResultHolder.fail(weapon);
+        }
+
+        this.specialAttack(level, player);
+
+        return super.use(level, player, usedHand);
+    }
+
+    protected void specialAttack(Level level, Player player) {
+
+    }
+}
+
+
+=== FILE: D:\Minecraft Projects\NeoForge\Fantasy-1E196E-Core\src\main\java\me\hippofatale\fantasy1e196ecore\item\weapon\SubWeaponItem.java ===
+
+package me.hippofatale.fantasy1e196ecore.item.weapon;
+
+import net.minecraft.world.item.Item;
+
+public class SubWeaponItem extends Item {
+    public SubWeaponItem(Properties properties) {
+        super(properties);
+    }
+}
+
+
+=== FILE: D:\Minecraft Projects\NeoForge\Fantasy-1E196E-Core\src\main\java\me\hippofatale\fantasy1e196ecore\network\AbilityInputC2SPacket.java ===
+
+package me.hippofatale.fantasy1e196ecore.network;
+
+import me.hippofatale.fantasy1e196ecore.Fantasy1E196ECore;
+import me.hippofatale.fantasy1e196ecore.ability.ModAbility;
+import me.hippofatale.fantasy1e196ecore.ability.ModAbilities;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.resources.ResourceLocation;
+import net.neoforged.neoforge.network.handling.IPayloadContext;
+
+public class AbilityInputC2SPacket implements CustomPacketPayload {
+    public static final ResourceLocation ID = ResourceLocation.fromNamespaceAndPath(Fantasy1E196ECore.MOD_ID, "ability_activation");
+    public static final CustomPacketPayload.Type<AbilityInputC2SPacket> TYPE = new CustomPacketPayload.Type<>(ID);
+    public static final StreamCodec<RegistryFriendlyByteBuf, AbilityInputC2SPacket> STREAM_CODEC = StreamCodec.composite(
+        ResourceLocation.STREAM_CODEC,
+        AbilityInputC2SPacket::getAbilityId,
+        AbilityInputC2SPacket::new
+    );
+    
+    private final ResourceLocation abilityId;
+    
+    public AbilityInputC2SPacket(ResourceLocation abilityId) {
+        this.abilityId = abilityId;
+    }
+    
+    @Override
+    public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
+        return TYPE;
+    }
+    
+    public static void handle(AbilityInputC2SPacket packet, IPayloadContext context) {
+        context.enqueueWork(() -> {
+            if (context.player() instanceof net.minecraft.server.level.ServerPlayer serverPlayer) {
+                ModAbility ability = ModAbilities.getAbility(packet.abilityId);
+                if (ability != null) {
+                    Fantasy1E196ECore.LOGGER.info("Executing ability: {}", packet.abilityId);
+                    ability.execute(serverPlayer);
+                } else {
+                    Fantasy1E196ECore.LOGGER.warn("Ability not found: {}", packet.abilityId);
+                }
+            }
+        });
+    }
+    
+    public ResourceLocation getAbilityId() {
+        return abilityId;
+    }
+}
+
+
+=== FILE: D:\Minecraft Projects\NeoForge\Fantasy-1E196E-Core\src\main\java\me\hippofatale\fantasy1e196ecore\network\BatterySyncS2CPacket.java ===
+
+package me.hippofatale.fantasy1e196ecore.network;
+
+import me.hippofatale.fantasy1e196ecore.Fantasy1E196ECore;
+import me.hippofatale.fantasy1e196ecore.attachment.ModAttachments;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.resources.ResourceLocation;
+import net.neoforged.neoforge.network.handling.IPayloadContext;
+
+public class BatterySyncS2CPacket implements CustomPacketPayload {
+    public static final ResourceLocation ID = ResourceLocation.fromNamespaceAndPath(Fantasy1E196ECore.MOD_ID, "battery_sync");
+    public static final CustomPacketPayload.Type<BatterySyncS2CPacket> TYPE = new CustomPacketPayload.Type<>(ID);
+    public static final StreamCodec<RegistryFriendlyByteBuf, BatterySyncS2CPacket> STREAM_CODEC = StreamCodec.composite(
+        StreamCodec.of((buf, value) -> buf.writeInt(value), buf -> buf.readInt()),
+        BatterySyncS2CPacket::getBattery,
+        BatterySyncS2CPacket::new
+    );
+
+    private final int battery;
+
+    public BatterySyncS2CPacket(int battery) {
+        this.battery = battery;
+    }
+
+    @Override
+    public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
+        return TYPE;
+    }
+
+    public static void handle(BatterySyncS2CPacket packet, IPayloadContext context) {
+        context.enqueueWork(() -> {
+            if (context.player() instanceof LocalPlayer clientPlayer) {
+                clientPlayer.setData(ModAttachments.MECHANIC_BATTERY.get(), packet.battery);
+            }
+        });
+    }
+
+    public int getBattery() {
+        return battery;
+    }
+}
+
+
+=== FILE: D:\Minecraft Projects\NeoForge\Fantasy-1E196E-Core\src\main\java\me\hippofatale\fantasy1e196ecore\network\ClassChangeC2SPacket.java ===
+
+package me.hippofatale.fantasy1e196ecore.network;
+
+import me.hippofatale.fantasy1e196ecore.Fantasy1E196ECore;
+import me.hippofatale.fantasy1e196ecore.attachment.ModAttachments;
+import me.hippofatale.fantasy1e196ecore.util.PlayerClass;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.ByteBufCodecs;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.resources.ResourceLocation;
+import net.neoforged.neoforge.network.handling.IPayloadContext;
+import net.neoforged.neoforge.network.PacketDistributor;
+
+public class ClassChangeC2SPacket implements CustomPacketPayload {
+    public static final ResourceLocation ID = ResourceLocation.fromNamespaceAndPath(Fantasy1E196ECore.MOD_ID, "class_change");
+    public static final CustomPacketPayload.Type<ClassChangeC2SPacket> TYPE = new CustomPacketPayload.Type<>(ID);
+    public static final StreamCodec<RegistryFriendlyByteBuf, ClassChangeC2SPacket> STREAM_CODEC = StreamCodec.composite(
+            ByteBufCodecs.stringUtf8(64),
+            packet -> packet.playerClass.getSerializedName(),
+            name -> {
+                for (PlayerClass playerClass : PlayerClass.values()) {
+                    if (playerClass.getSerializedName().equals(name)) return new ClassChangeC2SPacket(playerClass);
+                }
+                return new ClassChangeC2SPacket(PlayerClass.NONE);
+            }
+    );
+    private final PlayerClass playerClass;
+
+    public ClassChangeC2SPacket(PlayerClass playerClass) {
+        this.playerClass = playerClass;
+    }
+
+    @Override
+    public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
+        return TYPE;
+    }
+
+    public static void handle(ClassChangeC2SPacket packet, IPayloadContext context) {
+        context.enqueueWork(() -> {
+            if (context.player() instanceof net.minecraft.server.level.ServerPlayer serverPlayer) {
+                Fantasy1E196ECore.LOGGER.info("Player {} changing class to {}", serverPlayer.getName(), packet.playerClass);
+                serverPlayer.setData(ModAttachments.CURRENT_CLASS.get(), packet.playerClass);
+                PacketDistributor.sendToPlayer(serverPlayer, new ClassSyncS2CPacket(packet.playerClass));
+            }
+        });
+    }
+
+    public PlayerClass getPlayerClass() {
+        return playerClass;
+    }
+}
+
+
+=== FILE: D:\Minecraft Projects\NeoForge\Fantasy-1E196E-Core\src\main\java\me\hippofatale\fantasy1e196ecore\network\ClassSyncS2CPacket.java ===
+
+package me.hippofatale.fantasy1e196ecore.network;
+
+import me.hippofatale.fantasy1e196ecore.Fantasy1E196ECore;
+import me.hippofatale.fantasy1e196ecore.attachment.ModAttachments;
+import me.hippofatale.fantasy1e196ecore.util.PlayerClass;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.ByteBufCodecs;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.resources.ResourceLocation;
+import net.neoforged.neoforge.network.handling.IPayloadContext;
+
+public class ClassSyncS2CPacket implements CustomPacketPayload {
+    public static final ResourceLocation ID = ResourceLocation.fromNamespaceAndPath(Fantasy1E196ECore.MOD_ID, "class_sync");
+    public static final CustomPacketPayload.Type<ClassSyncS2CPacket> TYPE = new CustomPacketPayload.Type<>(ID);
+    public static final StreamCodec<RegistryFriendlyByteBuf, ClassSyncS2CPacket> STREAM_CODEC = StreamCodec.composite(
+            ByteBufCodecs.stringUtf8(64),
+            packet -> packet.playerClass.getSerializedName(),
+            name -> {
+                for (PlayerClass playerClass : PlayerClass.values()) {
+                    if (playerClass.getSerializedName().equals(name)) {
+                        return new ClassSyncS2CPacket(playerClass);
+                    }
+                }
+                return new ClassSyncS2CPacket(PlayerClass.NONE);
+            }
+    );
+
+    private final PlayerClass playerClass;
+
+    public ClassSyncS2CPacket(PlayerClass playerClass) {
+        this.playerClass = playerClass;
+    }
+
+    @Override
+    public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
+        return TYPE;
+    }
+
+    public static void handle(ClassSyncS2CPacket packet, IPayloadContext context) {
+        context.enqueueWork(() -> {
+            if (context.player() instanceof LocalPlayer clientPlayer) {
+                Fantasy1E196ECore.LOGGER.info("Syncing player class to client: {}", packet.playerClass);
+                clientPlayer.setData(ModAttachments.CURRENT_CLASS.get(), packet.playerClass);
+            }
+        });
+    }
+
+    public PlayerClass getPlayerClass() {
+        return playerClass;
+    }
+}
+
+
+=== FILE: D:\Minecraft Projects\NeoForge\Fantasy-1E196E-Core\src\main\java\me\hippofatale\fantasy1e196ecore\network\CylinderSyncS2CPacket.java ===
+
+package me.hippofatale.fantasy1e196ecore.network;
+
+import me.hippofatale.fantasy1e196ecore.Fantasy1E196ECore;
+import me.hippofatale.fantasy1e196ecore.attachment.ModAttachments;
+import me.hippofatale.fantasy1e196ecore.entity.projectile.BulletProjectile;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.resources.ResourceLocation;
+import net.neoforged.neoforge.network.handling.IPayloadContext;
+
+import java.util.ArrayList;
+import java.util.List;
+
+public class CylinderSyncS2CPacket implements CustomPacketPayload {
+    public static final ResourceLocation ID = ResourceLocation.fromNamespaceAndPath(Fantasy1E196ECore.MOD_ID, "cylinder_sync");
+    public static final CustomPacketPayload.Type<CylinderSyncS2CPacket> TYPE = new CustomPacketPayload.Type<>(ID);
+    public static final StreamCodec<RegistryFriendlyByteBuf, CylinderSyncS2CPacket> STREAM_CODEC = StreamCodec.composite(
+        StreamCodec.of((buf, cylinder) -> {
+            buf.writeVarInt(cylinder.size());
+            for (BulletProjectile.BulletType type : cylinder) {
+                buf.writeEnum(type);
+            }
+        }, buf -> {
+            int size = buf.readVarInt();
+            List<BulletProjectile.BulletType> cylinder = new ArrayList<>();
+            for (int i = 0; i < size; i++) {
+                cylinder.add(buf.readEnum(BulletProjectile.BulletType.class));
+            }
+            return cylinder;
+        }),
+        CylinderSyncS2CPacket::getCylinder,
+        CylinderSyncS2CPacket::new
+    );
+
+    private final List<BulletProjectile.BulletType> cylinder;
+
+    public CylinderSyncS2CPacket(List<BulletProjectile.BulletType> cylinder) {
+        this.cylinder = cylinder;
+    }
+
+    @Override
+    public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
+        return TYPE;
+    }
+
+    public static void handle(CylinderSyncS2CPacket packet, IPayloadContext context) {
+        context.enqueueWork(() -> {
+            if (context.player() instanceof LocalPlayer clientPlayer) {
+                clientPlayer.setData(ModAttachments.GUN_CYLINDER.get(), packet.cylinder);
+            }
+        });
+    }
+
+    public List<BulletProjectile.BulletType> getCylinder() {
+        return cylinder;
+    }
+}
+
+
+=== FILE: D:\Minecraft Projects\NeoForge\Fantasy-1E196E-Core\src\main\java\me\hippofatale\fantasy1e196ecore\network\ModNetwork.java ===
+
+package me.hippofatale.fantasy1e196ecore.network;
+
+import me.hippofatale.fantasy1e196ecore.Fantasy1E196ECore;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
+import net.neoforged.neoforge.network.registration.PayloadRegistrar;
+
+@EventBusSubscriber(modid = Fantasy1E196ECore.MOD_ID)
+public class ModNetwork {
+    
+    @SubscribeEvent
+    public static void register(RegisterPayloadHandlersEvent event) {
+        final PayloadRegistrar registrar = event.registrar("1");
+
+        registrar.playToServer(AbilityInputC2SPacket.TYPE, AbilityInputC2SPacket.STREAM_CODEC, AbilityInputC2SPacket::handle);
+        registrar.playToServer(ClassChangeC2SPacket.TYPE, ClassChangeC2SPacket.STREAM_CODEC, ClassChangeC2SPacket::handle);
+        registrar.playToClient(SyncPlayerDataS2CPacket.TYPE, SyncPlayerDataS2CPacket.STREAM_CODEC, SyncPlayerDataS2CPacket::handle);
+    }
+}
+
+
+=== FILE: D:\Minecraft Projects\NeoForge\Fantasy-1E196E-Core\src\main\java\me\hippofatale\fantasy1e196ecore\network\SyncPlayerDataS2CPacket.java ===
+
+package me.hippofatale.fantasy1e196ecore.network;
+
+import me.hippofatale.fantasy1e196ecore.Fantasy1E196ECore;
+import me.hippofatale.fantasy1e196ecore.attachment.ModAttachments;
+import me.hippofatale.fantasy1e196ecore.entity.projectile.BulletProjectile;
+import me.hippofatale.fantasy1e196ecore.util.PlayerClass;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.ByteBufCodecs;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.resources.ResourceLocation;
+import net.neoforged.neoforge.attachment.AttachmentType;
+import net.neoforged.neoforge.network.handling.IPayloadContext;
+import net.neoforged.neoforge.registries.NeoForgeRegistries;
+
+import java.util.ArrayList;
+import java.util.List;
+
+public class SyncPlayerDataS2CPacket implements CustomPacketPayload {
+    public static final ResourceLocation ID = ResourceLocation.fromNamespaceAndPath(Fantasy1E196ECore.MOD_ID, "sync_player_data");
+    public static final CustomPacketPayload.Type<SyncPlayerDataS2CPacket> TYPE = new CustomPacketPayload.Type<>(ID);
+
+    private final AttachmentType<?> attachmentType;
+    private final Object value;
+
+    public <T> SyncPlayerDataS2CPacket(AttachmentType<T> attachmentType, T value) {
+        this.attachmentType = attachmentType;
+        this.value = value;
+    }
+
+    @Override
+    public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
+        return TYPE;
+    }
+
+    // Attachment ?먯껜???깅줉 肄붾뜳????씠?⑺븯??沅곴레??踰붿슜 肄붾뜳
+    @SuppressWarnings("unchecked")
+    public static final StreamCodec<RegistryFriendlyByteBuf, SyncPlayerDataS2CPacket> STREAM_CODEC = StreamCodec.of(
+            (buf, packet) -> {
+                // 1. ?대뼡 AttachmentType?몄? ID瑜?蹂대깂
+                ResourceLocation typeId = NeoForgeRegistries.ATTACHMENT_TYPES.getKey(packet.attachmentType);
+                buf.writeResourceLocation(typeId);
+                // 2. ?대떦 AttachmentType??媛吏??댁옣 肄붾뜳(Codec)???ъ슜?섏뿬 媛믪쓣 踰꾪띁??吏곸젒 ?
+                if (packet.attachmentType.hasCodec()) {
+                    buf.writeJsonWithCodec(packet.attachmentType.getCodec(), packet.value);
+                }
+            },
+            buf -> {
+                ResourceLocation typeId = buf.readResourceLocation();
+                AttachmentType<?> attachmentType = NeoForgeRegistries.ATTACHMENT_TYPES.get(typeId);
+                Object value = null;
+                if (attachmentType != null && attachmentType.hasCodec()) {
+                    value = buf.readJsonWithCodec(attachmentType.getCodec());
+                }
+                return new SyncPlayerDataS2CPacket(attachmentType, value);
+            }
+    );
+
+    @SuppressWarnings("unchecked")
+    public static void handle(SyncPlayerDataS2CPacket packet, IPayloadContext context) {
+        context.enqueueWork(() -> {
+            if (context.player() instanceof LocalPlayer clientPlayer && packet.attachmentType != null) {
+                // ?대씪?댁뼵???곗씠???곗씠???쒗듃 ?숈쟻 媛깆떊
+                clientPlayer.setData((AttachmentType<Object>) packet.attachmentType, packet.value);
+            }
+        });
+    }
+}
+
+
+=== FILE: D:\Minecraft Projects\NeoForge\Fantasy-1E196E-Core\src\main\java\me\hippofatale\fantasy1e196ecore\statuseffect\ModStatusEffects.java ===
+
+package me.hippofatale.fantasy1e196ecore.statuseffect;
+
+import me.hippofatale.fantasy1e196ecore.Fantasy1E196ECore;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.world.effect.MobEffect;
+import net.neoforged.neoforge.registries.DeferredRegister;
+
+public class ModStatusEffects {
+    public static final DeferredRegister<MobEffect> STATUS_EFFECTS = DeferredRegister.create(Registries.MOB_EFFECT, Fantasy1E196ECore.MOD_ID);
+}
+
+
+=== FILE: D:\Minecraft Projects\NeoForge\Fantasy-1E196E-Core\src\main\java\me\hippofatale\fantasy1e196ecore\statuseffect\StatusEffect.java ===
+
+package me.hippofatale.fantasy1e196ecore.statuseffect;
+
+import net.minecraft.core.particles.ParticleOptions;
+import net.minecraft.world.effect.MobEffect;
+import net.minecraft.world.effect.MobEffectCategory;
+
+public class StatusEffect extends MobEffect {
+    private final boolean isRemovable;
+    private final boolean isStackable;
+
+    protected StatusEffect(MobEffectCategory category) {
+        super(category, 0);
+        this.isRemovable = true;
+        this.isStackable = false;
+    }
+
+    protected StatusEffect(MobEffectCategory category, boolean isRemovable, boolean isStackable) {
+        super(category, 0);
+        this.isRemovable = isRemovable;
+        this.isStackable = isStackable;
+    }
+
+    protected StatusEffect(MobEffectCategory category, boolean isRemovable, boolean isStackable, int color) {
+        super(category, color);
+        this.isRemovable = isRemovable;
+        this.isStackable = isStackable;
+    }
+
+    protected StatusEffect(MobEffectCategory category, boolean isRemovable, boolean isStackable, int color, ParticleOptions particle) {
+        super(category, color, particle);
+        this.isRemovable = isRemovable;
+        this.isStackable = isStackable;
+    }
+
+    public boolean isRemovable() {
+        return this.isRemovable;
+    }
+
+    public boolean isStackable() {
+        return isStackable;
+    }
+
+    public boolean isBuff() {
+        return this.getCategory() == MobEffectCategory.BENEFICIAL;
+    }
+
+    public boolean isDebuff() {
+        return this.getCategory() == MobEffectCategory.HARMFUL;
+    }
+
+}
+
+
+=== FILE: D:\Minecraft Projects\NeoForge\Fantasy-1E196E-Core\src\main\java\me\hippofatale\fantasy1e196ecore\util\AttachmentSyncHelper.java ===
+
+package me.hippofatale.fantasy1e196ecore.util;
+
+import me.hippofatale.fantasy1e196ecore.attachment.ModAttachments;
+import me.hippofatale.fantasy1e196ecore.entity.projectile.BulletProjectile;
+import me.hippofatale.fantasy1e196ecore.network.BatterySyncS2CPacket;
+import me.hippofatale.fantasy1e196ecore.network.CylinderSyncS2CPacket;
+import me.hippofatale.fantasy1e196ecore.network.SyncPlayerDataS2CPacket;
+import net.minecraft.server.level.ServerPlayer;
+import net.neoforged.neoforge.attachment.AttachmentType;
+import net.neoforged.neoforge.network.PacketDistributor;
+
+import java.util.List;
+
+public class AttachmentSyncHelper {
+    public static <T> void sync(ServerPlayer player, AttachmentType<T> type) {
+        T value = player.getData(type);
+        PacketDistributor.sendToPlayer(player, new SyncPlayerDataS2CPacket(type, value));
+    }
+
+    public static void syncAll(ServerPlayer player) {
+        sync(player, ModAttachments.CURRENT_CLASS.get());
+        sync(player, ModAttachments.MECHANIC_BATTERY.get());
+        sync(player, ModAttachments.GUN_CYLINDER.get());
+        sync(player, ModAttachments.ARCANUM_POINT.get());
+    }
+}
+
+
+=== FILE: D:\Minecraft Projects\NeoForge\Fantasy-1E196E-Core\src\main\java\me\hippofatale\fantasy1e196ecore\util\PlayerClass.java ===
+
+package me.hippofatale.fantasy1e196ecore.util;
+
+import com.mojang.serialization.Codec;
+import me.hippofatale.fantasy1e196ecore.attribute.ModAttributes;
+import me.hippofatale.fantasy1e196ecore.item.weapon.GunItem;
+import me.hippofatale.fantasy1e196ecore.item.weapon.MainWeaponItem;
+import me.hippofatale.fantasy1e196ecore.item.weapon.SubWeaponItem;
+import net.minecraft.core.Holder;
+import net.minecraft.util.StringRepresentable;
+import net.minecraft.world.entity.ai.attributes.Attribute;
+import net.minecraft.world.item.Item;
+
+public enum PlayerClass implements StringRepresentable {
+    NONE("none", "class.fantasy1e196ecore.none", ModAttributes.STRENGTH, MainWeaponItem.class, SubWeaponItem.class),
+
+    //sabre
+    SWORDMASTER("swordmaster", "class.fantasy1e196ecore.swordmaster", ModAttributes.STRENGTH, MainWeaponItem.class, SubWeaponItem.class),
+    SPELLSWORD("spellsword", "class.fantasy1e196ecore.spellsword", ModAttributes.STRENGTH, MainWeaponItem.class, SubWeaponItem.class),
+    PALADIN("paladin", "class.fantasy1e196ecore.paladin", ModAttributes.STRENGTH, MainWeaponItem.class, SubWeaponItem.class),
+
+    //scythe
+    DRUID("druid", "class.fantasy1e196ecore.druid", ModAttributes.STRENGTH, MainWeaponItem.class, SubWeaponItem.class),
+    EXECUTIONER("executioner", "class.fantasy1e196ecore.executioner", ModAttributes.STRENGTH, MainWeaponItem.class, SubWeaponItem.class),
+
+    //gun
+    MECHANIC("mechanic", "class.fantasy1e196ecore.mechanic", ModAttributes.DEXTERITY, GunItem.class, SubWeaponItem.class),
+    DOCTOR("doctor", "class.fantasy1e196ecore.doctor", ModAttributes.DEXTERITY, GunItem.class, SubWeaponItem.class),
+
+    //staff
+    ELEMENTALIST("elementalist", "class.fantasy1e196ecore.elementalist", ModAttributes.INTELLIGENCE, MainWeaponItem.class, SubWeaponItem.class),
+    PRIEST("priest", "class.fantasy1e196ecore.priest", ModAttributes.INTELLIGENCE, MainWeaponItem.class, SubWeaponItem.class),
+
+    //mana sphere
+    BARD("bard", "class.fantasy1e196ecore.bard", ModAttributes.INTELLIGENCE, MainWeaponItem.class, SubWeaponItem.class),
+    ASTROLOGER("astrologer", "class.fantasy1e196ecore.astrologer", ModAttributes.INTELLIGENCE, MainWeaponItem.class, SubWeaponItem.class),
+    ;
+
+    public static final Codec<PlayerClass> CODEC = StringRepresentable.fromEnum(PlayerClass::values);
+
+    private final String id;
+    private final String translationKey;
+    private final Holder<Attribute> mainAttribute;
+    private final Class<? extends MainWeaponItem> mainWeapon;
+    private final Class<? extends SubWeaponItem> subWeapon;
+
+    PlayerClass(String id, String translationKey, Holder<Attribute> mainAttribute, Class<? extends MainWeaponItem> mainWeapon, Class<? extends SubWeaponItem> subWeapon) {
+        this.id = id;
+        this.translationKey = translationKey;
+        this.mainAttribute = mainAttribute;
+        this.mainWeapon = mainWeapon;
+        this.subWeapon = subWeapon;
+    }
+
+    public String getTranslationKey() {
+        return translationKey;
+    }
+
+    public Holder<Attribute> getMainAttribute() {
+        return mainAttribute;
+    }
+
+    public Class<? extends MainWeaponItem> getMainWeapon() {
+        return mainWeapon;
+    }
+
+    public Class<? extends SubWeaponItem> getSubWeapon() {
+        return subWeapon;
+    }
+
+    @Override
+    public String getSerializedName() {
+        return this.id;
+    }
+}

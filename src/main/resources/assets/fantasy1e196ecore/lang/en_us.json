@@ -1,0 +1,48 @@
+{
+  "itemGroup.fantasy1e196ecore": "Example Mod Tab",
+  "block.fantasy1e196ecore.example_block": "Example Block",
+  "item.fantasy1e196ecore.example_item": "Example Item",
+  "item.fantasy1e196ecore.wood_gun": "Wood Gun",
+
+  "fantasy1e196ecore.configuration.title": "Fantasy: 1E196E Core Configs",
+  "fantasy1e196ecore.configuration.section.fantasy1e196ecore.common.toml": "Fantasy: 1E196E Core Configs",
+  "fantasy1e196ecore.configuration.section.fantasy1e196ecore.common.toml.title": "Fantasy: 1E196E Core Configs",
+  "fantasy1e196ecore.configuration.items": "Item List",
+  "fantasy1e196ecore.configuration.logDirtBlock": "Log Dirt Block",
+  "fantasy1e196ecore.configuration.magicNumberIntroduction": "Magic Number Text",
+  "fantasy1e196ecore.configuration.magicNumber": "Magic Number",
+
+  "attribute.fantasy1e196ecore.strength": "Strength",
+  "attribute.fantasy1e196ecore.dexterity": "Dexterity",
+  "attribute.fantasy1e196ecore.intelligence": "Intelligence",
+  "attribute.fantasy1e196ecore.skill_speed": "Skill Speed",
+  "attribute.fantasy1e196ecore.crit_rate": "Critical Hit Rate",
+  "attribute.fantasy1e196ecore.crit_damage": "Critical Hit Damage",
+
+  "key.category.fantasy1e196ecore": "Fantasy: 1E196E Core",
+  "key.fantasy1e196ecore.skill_1": "Skill 1",
+  "key.fantasy1e196ecore.skill_2": "Skill 2",
+  "key.fantasy1e196ecore.skill_3": "Skill 3",
+  "key.fantasy1e196ecore.skill_4": "Skill 4",
+  "key.fantasy1e196ecore.open_class_selection": "Open Class Selection",
+
+  "ability.fantasy1e196ecore.example": "Example Ability",
+  "ability.fantasy1e196ecore.example.tooltip": "An example ability that heals the player",
+  "ability.fantasy1e196ecore.railgun": "Railgun",
+  "ability.fantasy1e196ecore.railgun.tooltip": "Fires a piercing projectile that deals damage and restores battery",
+
+  "class.fantasy1e196ecore.none": "None",
+  "class.fantasy1e196ecore.swordmaster": "Swordmaster",
+  "class.fantasy1e196ecore.spellsword": "Spellsword",
+  "class.fantasy1e196ecore.paladin": "Paladin",
+  "class.fantasy1e196ecore.druid": "Druid",
+  "class.fantasy1e196ecore.executioner": "Executioner",
+  "class.fantasy1e196ecore.mechanic": "Mechanic",
+  "class.fantasy1e196ecore.doctor": "Doctor",
+  "class.fantasy1e196ecore.elementalist": "Elementalist",
+  "class.fantasy1e196ecore.priest": "Priest",
+  "class.fantasy1e196ecore.bard": "Bard",
+  "class.fantasy1e196ecore.astrologer": "Astrologer",
+
+  "screen.fantasy1e196ecore.class_selection": "Select Your Class"
+}
